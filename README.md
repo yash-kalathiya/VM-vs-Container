@@ -138,6 +138,22 @@ Artifacts are written to `bench/out/`:
 - `results.json` — raw results
 - `startup.png`, `latency_avg.png`, `latency_p95.png`, `throughput.png`, `memory.png`, `cpu.png`
 
+## Photos
+
+Drop your screenshots or photos into `assets/photos/` and they will render here. Suggested shots:
+
+- Docker container running and healthy
+- Vagrant VM app running and `/health` responding
+- Terminal snapshot of a benchmark run
+- Any system monitor graphs during load (optional)
+
+<p align="center">
+  <img src="assets/photos/docker_running.jpg" width="45%" title="Docker app running"/>
+  <img src="assets/photos/vagrant_vm.jpg" width="45%" title="Vagrant VM running"/><br/>
+  <img src="assets/photos/bench_terminal.jpg" width="45%" title="Benchmark run"/>
+  <img src="assets/photos/system_monitor.jpg" width="45%" title="System monitor during load"/>
+</p>
+
 ## Pushing Images (Optional)
 
 ```bash
