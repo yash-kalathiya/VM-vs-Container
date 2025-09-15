@@ -1,0 +1,11 @@
+Vagrant.configure("2") do |config|
+  config.vm.box = "ubuntu/jammy64"
+  config.vm.network "forwarded_port", guest: 8000, host: 8001, auto_correct: true
+  # Sync project root into the VM
+  config.vm.synced_folder "..", "/project"
+  config.vm.provider "virtualbox" do |vb|
+    vb.memory = 2048
+    vb.cpus = 2
+  end
+  config.vm.provision "shell", path: "provision.sh"
+end

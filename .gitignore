@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+
+# Bench outputs
+bench/out/
+vm_gunicorn.log
+
+# Vagrant
+.vagrant/
+
+# OS/editor
+.DS_Store
+*.swp
+

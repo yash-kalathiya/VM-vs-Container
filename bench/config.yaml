@@ -1,0 +1,7 @@
+trials: 5
+prime_n: 300000
+concurrency: 8
+requests: 200
+docker_url: "http://localhost:8000"
+vm_url: "http://localhost:8001"
+
