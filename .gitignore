@@ -5,7 +5,6 @@ __pycache__/
 .venv/
 
 # Bench outputs
-bench/out/
 vm_gunicorn.log
 
 # Vagrant
