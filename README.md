@@ -1,49 +1,163 @@
-# Flask VM vs Docker Benchmark (CPU-spiky endpoint)
+<div align="center">
 
-This project compares performance of a simple Flask app running in a Docker container vs a Vagrant VM.
-The app includes a compute-heavy `/primecount?n=...` endpoint to generate measurable CPU + memory pressure.
+# Flask VM vs Docker Benchmark
 
-## Quick start
+CPU-heavy Flask app benchmarked in Docker vs Vagrant VM on a developer laptop.
+
+</div>
+
+## Overview
+
+This repository compares the performance characteristics of the same Flask application when deployed in:
+
+- a Docker container (Gunicorn, single worker)
+- a Vagrant VM (Ubuntu Jammy on VirtualBox, Gunicorn single worker)
+
+It focuses on CPU-heavy work via a compute-bound endpoint to create measurable load and highlight runtime and environment overheads.
+
+Measured metrics:
+
+- Startup time: cold start to first successful `/health`
+- Latency: average, p50, p95 under load
+- Throughput: estimated requests/sec
+- Process CPU and RSS memory: sampled during load
+
+All results are reproducible locally on Linux/macOS and are summarized below with plots.
+
+## Requirements
+
+- Python 3.11
+- Docker (daemon running)
+- Vagrant + VirtualBox
+- Ensure ports `8000` (Docker) and `8001` (VM forwarded port) are free
+
+Recommended laptop spec for consistent results: 16GB RAM, Intel i5‑12500H (or comparable), stable AC power.
+
+## Repo Layout
+
+```
+.
+├── app/
+│   ├── app.py               # Flask app with CPU-heavy /primecount endpoint
+│   ├── wsgi.py              # WSGI entrypoint (works as module or package)
+│   ├── requirements.txt
+│   └── tests/
+│       └── test_app.py
+├── docker/
+│   └── Dockerfile
+├── vagrant/
+│   ├── Vagrantfile          # Ubuntu Jammy, 2 CPU, 2GB RAM, port 8001 -> 8000
+│   └── provision.sh         # Creates venv, installs deps, runs Gunicorn
+├── bench/
+│   ├── config.yaml          # Trials, load params, URLs
+│   ├── bench.py             # Orchestrates runs, metrics, writes results.json
+│   ├── vm_metrics.py        # One-shot VM process metrics helper
+│   ├── vm_sampler.py        # In-guest sampler to JSONL (CPU%, RSS)
+│   └── plot_results.py      # Generates PNG plots
+├── scripts/
+│   ├── run_docker.sh        # Build and run container, wait for /health
+│   ├── run_vm.sh            # Boot VM, wait for /health
+│   ├── build_and_push.sh    # Build and push image (placeholders)
+│   ├── collect_all.sh       # Full pipeline: test -> run -> bench -> plot -> README
+│   └── update_readme.py     # Refresh README results section from results.json
+├── README.md                # You are here
+└── .gitignore
+```
+
+## The App (CPU-heavy Endpoint)
+
+- `GET /health` → `{ "status": "ok" }`
+- `GET /primecount?n=300000` → Counts primes ≤ n using a Sieve of Eratosthenes.
+  - Heavily CPU-bound by design; adjust `n` in `bench/config.yaml`.
+
+## Quick Start
 
 ```bash
 # prerequisites: Docker, Vagrant (+ VirtualBox), Python 3.11
 python3 -m venv .venv && . .venv/bin/activate
 pip install -r app/requirements.txt
 
-# run all (build, run docker+vm, benchmark, plots, README update)
+# End-to-end: build, run Docker + VM, benchmark, plots, README update
 bash scripts/collect_all.sh
 ```
 
-**Images push (optional):**
+On the first run, Vagrant will download the base box and set up packages; this can take several minutes.
+
+## Configuration
+
+`bench/config.yaml` controls load and environment:
+
+- `trials`: number of benchmark trials (default: 5)
+- `prime_n`: n for `/primecount` (default: 300000)
+- `concurrency`: threads for client load (default: 8)
+- `requests`: total request count per trial (default: 200)
+- `docker_url`: `http://localhost:8000`
+- `vm_url`: `http://localhost:8001`
+
+## How Metrics Are Measured
+
+- Docker startup time: from `docker run -d` until `/health` becomes available.
+- VM startup time: from a cold boot (`vagrant halt -f` then `vagrant up --provision`) until `/health` becomes available.
+- Latency and throughput: client-side timings under concurrent threaded load.
+- CPU and memory:
+  - Docker: samples `docker stats --no-stream` for container CPU% and memory.
+  - VM: samples the Gunicorn worker’s process CPU% and RSS via an in-guest `psutil` sampler writing JSONL files, pulled back after trials.
+
+Design choices for comparability:
+
+- Single Gunicorn worker in both environments.
+- Same app code and workload in both targets.
+- Repeat trials, compute mean and population stdev.
+- Matplotlib for basic, readable PNG plots.
+
+## Running Pieces Individually
 
 ```bash
-export REGISTRY=ghcr.io/<you> IMAGE_NAME=flask-bench IMAGE_TAG=$(git rev-parse --short HEAD)
-export DOCKER_USERNAME=<you> DOCKER_PASSWORD=<token>
+# Start only the Docker target (serves http://localhost:8000)
+IMAGE="test/flask-bench" TAG="local" ./scripts/run_docker.sh
+
+# Start only the VM target (serves http://localhost:8001)
+./scripts/run_vm.sh
+
+# Run just the benchmark + plots (assumes both targets are already up)
+python3 bench/bench.py
+python3 bench/plot_results.py
+python3 scripts/update_readme.py
+```
+
+## Results
+
+The table and plots below are auto-generated by the benchmarking pipeline and updated here on each run.
+
+<!-- AUTO-BENCHMARKS -->
+
+<!-- AUTO-BENCHMARKS -->
+
+Artifacts are written to `bench/out/`:
+
+- `results.json` — raw results
+- `startup.png`, `latency_avg.png`, `latency_p95.png`, `throughput.png`, `memory.png`, `cpu.png`
+
+## Pushing Images (Optional)
+
+```bash
+export REGISTRY=ghcr.io/<you>
+export IMAGE_NAME=flask-bench
+export IMAGE_TAG=$(git rev-parse --short HEAD)
+export DOCKER_USERNAME=<you>
+export DOCKER_PASSWORD=<token>
 bash scripts/build_and_push.sh
 ```
 
-<!-- AUTO-BENCHMARKS -->
+## Troubleshooting
 
-### VM vs. Docker Summary
+- Ports in use: ensure `8000`/`8001` are free or edit mappings (Dockerfile and `vagrant/Vagrantfile`).
+- Vagrant shared folders/Guest Additions mismatch: VM still works; if folder sync fails, reload or install matching Guest Additions.
+- VM fails to reach `/health`: check `/project/vm_gunicorn.log` inside the VM (`vagrant ssh`), verify Python venv exists, and `app.wsgi:application` imports.
+- Docker “pytest not found”: tests are run inside the app image; add `pytest` to a dev requirements if you want strict test gating.
+- Performance noise: close background apps, plug in power, run a few times and compare averages/stdev.
 
-| Metric | Docker | VM |
-|---|---:|---:|
-| Startup time (s) | 0.767 | 23.845 |
-| Avg latency (s) | 0.016 | 0.024 |
-| P95 latency (s) | 0.018 | 0.029 |
-| Throughput (RPS est.) | 12844.376 | 8379.606 |
-| RSS memory (MiB, sampled) | ~37.2 | ~27.9 |
-| CPU util (% proc, sampled) | ~23.0% | ~27.1% |
+## Notes
 
-
-<p align="center">
-  <img src="bench/out/startup.png" width="45%"/>
-  <img src="bench/out/latency_avg.png" width="45%"/><br/>
-  <img src="bench/out/latency_p95.png" width="45%"/>
-  <img src="bench/out/throughput.png" width="45%"/><br/>
-  <img src="bench/out/memory.png" width="45%"/>
-  <img src="bench/out/cpu.png" width="45%"/>
-</p>
-
-<!-- AUTO-BENCHMARKS -->
-
+- Repository created fresh; only scaffolding design was inspired by a separate project. No application code was copied.
+- This is intended for local benchmarking; do not expose the app on the public Internet without hardening.
