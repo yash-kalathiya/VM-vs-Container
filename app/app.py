@@ -3,6 +3,12 @@ import time
 
 app = Flask(__name__)
 
+@app.post("/deploy")
+def deploy():
+    payload = request.get_json(force=True)
+    print("Received deploy webhook:", payload)
+    # You could trigger a local script, pull new image, restart service, etc.
+    return jsonify(status="received", at=time.time())
 
 @app.get("/health")
 def health():
