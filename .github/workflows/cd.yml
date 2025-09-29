@@ -65,7 +65,7 @@ jobs:
           WEBHOOK_URL: ${{ secrets.DEPLOY_WEBHOOK_URL }}
         run: |
           if [ -z "$WEBHOOK_URL" ]; then
-            echo "No DEPLOY_WEBHOOK_URL set; skipping webhook call."
+            echo "No DEPLOY_WEBHOOK_URL set; skipping webhook call"
             exit 0
           fi
           payload=$(jq -n \
