@@ -167,3 +167,51 @@ bash scripts/build_and_push.sh
 
 - Repository created fresh; only scaffolding design was inspired by a separate project. No application code was copied.
 - This is intended for local benchmarking; do not expose the app on the public Internet without hardening.
+
+## VM vs Container — CI/CD with GitHub Actions + GHCR
+
+This repo includes CI/CD that works whether you already have an app or not.
+
+* **CI** (push/PR): Lint with Ruff, run PyTest if tests are present, upload JUnit.
+* **CD** (push to `main`, tags `v*`): Detect a Dockerfile, build the image, push to **GHCR** with `latest` and `<git-sha>` tags.
+* Optional **deploy webhook** posts a JSON payload after publish if `DEPLOY_WEBHOOK_URL` is set.
+
+## Status Badges
+
+
+![CI](https://github.com/yash-kalathiya/VM-vs-Container/actions/workflows/ci.yml/badge.svg)
+![CD](https://github.com/yash-kalathiya/VM-vs-Container/actions/workflows/cd.yml/badge.svg)
+
+## Local Dev
+
+```bash
+# If you use the sample app:
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r sample_app/requirements.txt
+uvicorn sample_app.app:app --host 0.0.0.0 --port 8000
+```
+
+## CI/CD
+
+* Workflows live in `.github/workflows/`.
+* CI triggers on push and PR; CD triggers on push to `main` and on tags `v*`.
+* Images publish to: `ghcr.io/yash-kalathiya/VM-vs-Container:{latest,<git-sha>}` (lowercased by the workflow).
+
+### Permissions
+
+```yaml
+permissions:
+  contents: read
+  packages: write
+```
+
+This enables `GITHUB_TOKEN` to push to GHCR.
+
+### Optional Deploy Webhook
+
+Create a repo secret: **DEPLOY_WEBHOOK_URL**
+Example payload: `docs/deploy_webhook_example.json`.
+
+## Decisions & Challenges
+
+See `docs/ci_cd_decisions.md`.

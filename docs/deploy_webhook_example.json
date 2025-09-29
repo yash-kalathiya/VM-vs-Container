@@ -1,0 +1,11 @@
+{
+"repo": "yash-kalathiya/VM-vs-Container",
+"sha": "abc123def",
+"image": "ghcr.io/yash-kalathiya/vm-vs-container",
+"tags": [
+"ghcr.io/yash-kalathiya/vm-vs-container:latest",
+"ghcr.io/yash-kalathiya/vm-vs-container:abc123def"
+],
+"event": "publish",
+"ts": "1732849200"
+}

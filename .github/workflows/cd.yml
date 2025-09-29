@@ -1,0 +1,75 @@
+name: CD
+
+on:
+  push:
+    branches: [ "main" ]
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  cd:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compute image name (lowercase)
+        id: names
+        shell: bash
+        run: |
+          REPO="${{ github.repository }}"
+          IMAGE="$(echo "${REPO}" | tr '[:upper:]' '[:lower:]')"
+          echo "image=${{ env.REGISTRY }}/${IMAGE}" >> "$GITHUB_OUTPUT"
+
+      - name: Detect Dockerfile
+        id: dockerfile
+        shell: bash
+        run: |
+          DF=""
+          if [ -f sample_app/Dockerfile ]; then
+            DF="sample_app/Dockerfile"
+          else
+            DF=$(ls -1 **/Dockerfile 2>/dev/null | head -n1 || true)
+          fi
+          if [ -z "$DF" ]; then
+            echo "No Dockerfile found. If you have an app, commit a Dockerfile. If not, enable sample_app." >&2
+            exit 1
+          fi
+          echo "path=$DF" >> "$GITHUB_OUTPUT"
+
+      - name: Build image
+        run: |
+          docker build \
+            -t "${{ steps.names.outputs.image }}:latest" \
+            -t "${{ steps.names.outputs.image }}:${{ github.sha }}" \
+            -f "${{ steps.dockerfile.outputs.path }}" \
+            .
+
+      - name: Login to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Push image
+        run: |
+          docker push "${{ steps.names.outputs.image }}:latest"
+          docker push "${{ steps.names.outputs.image }}:${{ github.sha }}"
+
+      - name: Optional deploy webhook
+        if: ${{ secrets.DEPLOY_WEBHOOK_URL != '' }}
+        run: |
+          payload=$(jq -n \
+            --arg repo "${{ github.repository }}" \
+            --arg sha "${{ github.sha }}" \
+            --arg image "${{ steps.names.outputs.image }}" \
+            --arg tag_latest "${{ steps.names.outputs.image }}:latest" \
+            --arg tag_sha "${{ steps.names.outputs.image }}:${{ github.sha }}" \
+            '{repo:$repo, sha:$sha, image:$image, tags:[$tag_latest,$tag_sha], event:"publish", ts:now|tostring}')
+          curl -sS -X POST "${{ secrets.DEPLOY_WEBHOOK_URL }}" \
+            -H "Content-Type: application/json" \
+            -d "$payload" || true
